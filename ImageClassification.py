@@ -1,202 +1,86 @@
-# Assignment 3
-# Niklas Bergqvist
-# Group 95
+#Assignment 4
+#Niklas Bergqvist
+#Group 29
 
-#rm(list = ls())
-library(Diagnostics)
+#Supress warnings if you will
+import warnings
+#warnings.simplefilter(action='ignore', category=FutureWarning)
+#warnings.filterwarnings("ignore")
 
-#Candidate function
-candidatefcn = function(prob)
-{
-  if(prob == 1)
-  {
-    return (0)
-  }
-  else
-  {
-    return (1)
-  }
-}
+#Load libraries
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
 
-#Calculate probabilities
-calcProb = function(case, network)
-{
-  probOld = dnorm(case[[2]], mean = network$Te[2*case[[1]] + 1], sd = network$Te[2*case[[1]] + 2])
+import tensorflow as tf
+from tensorflow.keras import datasets, layers, models, losses, metrics, optimizers
 
-  if(case[[1]] == 1)
-  {
-    probOld = probOld*network$Pn
-  }
-  if(case[[1]] == 0)
-  {
-    probOld = probOld*(1 -network$Pn)
-  }
+#Load image data from the home folder
+test = pd.read_csv("test.csv")
+data = pd.read_csv("train.csv")
 
-  if(case[[3]] == 1)
-  {
-    probOld = probOld*network$VTB
-  }
-  if(case[[3]] == 0)
-  {
-    probOld = probOld*(1 - network$VTB)
-  }
+#print(data.head())
 
-  if(case[[4]] == 1)
-  {
-    probOld = probOld*network$TB[[1 + case[[3]]]]
-  }
-  if(case[[4]] == 0)
-  {
-    probOld = probOld*(1 - network$TB[[1 + case[[3]]]])
-  }
+#Split dataset into training and validation set
+train, valid = train_test_split(data, test_size=0.20,random_state=0,)
 
-  if(case[[5]] == 1)
-  {
-    probOld = probOld*network$Sm
-  }
-  if(case[[5]] == 0)
-  {
-    probOld = probOld*(1 - network$Sm)
-  }
+#Loading the labels
+X_test = np.array(valid.drop(['label'], axis=1))
+X_train = np.array(train.drop(['label'], axis=1))
+y_train = np.array(train['label'])
+y_test = np.array(valid['label'])
 
-  if(case[[6]] == 1)
-  {
-    probOld = probOld*network$LC[[1 + case[[5]]]]
-  }
-  if(case[[6]] == 0)
-  {
-    probOld = probOld*(1 - network$LC[[1 + case[[5]]]])
-  }
+#Reshaping into the right dimensions
+X_train = np.reshape(X_train, (X_train.shape[0], 28, 28))
+X_test = np.reshape(X_test, (X_test.shape[0], 28, 28))
+X_train = np.reshape(X_train, (X_train.shape[0], 28, 28, 1))
+X_test = np.reshape(X_test, (X_test.shape[0], 28, 28, 1))
 
-  if(case[[7]] == 1)
-  {
-    probOld = probOld*network$Br[[1 + case[[5]]]]
-  }
-  if(case[[7]] == 0)
-  {
-    probOld = probOld*(1 - network$Br[[1 + case[[5]]]])
-  }
+#Normalize the image data between 0 and 1
+X_train = X_train / 255
+X_test = X_test / 255
 
-  if(case[[8]] == 1)
-  {
-    probOld = probOld*network$XR[[1 + case[[1]] + 2*case[[4]] + 4*case[[6]]]]
-  }
-  if(case[[8]] == 0)
-  {
-    probOld = probOld*(1 - network$XR[[1 + case[[1]] + 2*case[[4]] + 4*case[[6]]]])
-  }
+#Define the keras model
+#Convolutional neural networks are very good at picking up on patterns in images
+model = models.Sequential()
+#Apply The rectified linear activation (relu) which is a function that is a piecewise
+#linear function that will output the input directly if it is positive, otherwise, it will
+#it will output zero
+model.add(layers.Conv2D(64, (3, 3), activation='relu', input_shape=(28, 28, 1)))
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+#Apply MaxPooling2D layer that downsamples the input representation by taking the maximum value
+#over the window defined by pool_size for each dimension along the features axis.
+model.add(layers.MaxPool2D(pool_size=(2, 2)))
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(layers.Conv2D(64, (3, 3), activation='relu'))
+model.add(layers.MaxPool2D(pool_size=(2, 2)))
+#Flatten the model by remove all of the dimensions except for one.
+model.add(layers.Flatten())
+model.add(layers.Dense(512, activation='relu'))
+#Dropout layer to combat overfitting
+model.add(layers.Dropout(0.5))
+#Add a softmax layer to translate the numbers into a probability distribution.
+model.add(layers.Dense(10, activation='softmax'))
+#Adam is an adaptive learning rate method, which means, it computes individual
+#learning rates for different parameters. Its name is derived from adaptive moment estimation
+#Adam can be looked at as a combination of RMSprop and Stochastic Gradient Descent with momentum
+model.compile(loss='sparse_categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+#Fit the keras model on the dataset for 5 epochs
+model.fit(X_train, y_train, batch_size=32, epochs=5, validation_data=(X_test, y_test))
 
-  if(case[[9]] == 1)
-  {
-    probOld = probOld*network$Dy[[1 + case[[6]] + 2*case[[7]]]]
-  }
-  if(case[[9]] == 0)
-  {
-    probOld = probOld*(1 - network$Dy[[1 + case[[6]] + 2*case[[7]]]])
-  }
+# print the accuracy score
+score = model.evaluate(X_test, y_test, verbose=0)
+print('Accuracy score:', score[1])
 
-  return(probOld)
-}
+#print(test.head())
 
-#learn function to be used
-learn = function(hist)
-{
-  network = list()
+# make predictions
+x_test = np.array(test)
+x_test = np.reshape(x_test, (x_test.shape[0], 28, 28))
+x_test = x_test.astype('float32')
+x_test = np.reshape(x_test, (x_test.shape[0], 28, 28, 1))
 
-  #P(Temperature | Pneumonia)
-  network$Te = c(mean(hist[which(hist$Pn == 0), 'Te']), sd(hist[which(hist$Pn == 0), 'Te']),
-                 mean(hist[which(hist$Pn == 1), 'Te']), sd(hist[which(hist$Pn == 1), 'Te']))
+pred = model.predict(x_test)
 
-  #P(Visited TB spot)
-  network$VTB = (1 + sum(hist$VTB))/(length(hist$VTB) + 2)
-
-  #P(Smokes)
-  network$Sm = (1 + sum(hist$Sm))/(length(hist$Sm) + 2)
-
-  #P(X-ray | Pneumonia, Tuberculosis, Lung Cancer)
-  network$XR = c((1 + sum(hist[hist$Pn == 0 & hist$TB == 0 & hist$LC == 0,]$XR))/(length(hist$XR[hist$LC == 0 & hist$TB == 0 & hist$Pn == 0]) + 2),
-                 (1 + sum(hist[hist$Pn == 1 & hist$TB == 0 & hist$LC == 0,]$XR))/(length(hist$XR[hist$LC == 0 & hist$TB == 0 & hist$Pn == 1]) + 2),
-                 (1 + sum(hist[hist$Pn == 0 & hist$TB == 1 & hist$LC == 0,]$XR))/(length(hist$XR[hist$LC == 0 & hist$TB == 1 & hist$Pn == 0]) + 2),
-                 (1 + sum(hist[hist$Pn == 1 & hist$TB == 1 & hist$LC == 0,]$XR))/(length(hist$XR[hist$LC == 0 & hist$TB == 1 & hist$Pn == 1]) + 2),
-                 (1 + sum(hist[hist$Pn == 0 & hist$TB == 0 & hist$LC == 1,]$XR))/(length(hist$XR[hist$LC == 1 & hist$TB == 0 & hist$Pn == 0]) + 2),
-                 (1 + sum(hist[hist$Pn == 1 & hist$TB == 0 & hist$LC == 1,]$XR))/(length(hist$XR[hist$LC == 1 & hist$TB == 0 & hist$Pn == 1]) + 2),
-                 (1 + sum(hist[hist$Pn == 0 & hist$TB == 1 & hist$LC == 1,]$XR))/(length(hist$XR[hist$LC == 1 & hist$TB == 1 & hist$Pn == 0]) + 2),
-                 (1 + sum(hist[hist$Pn == 1 & hist$TB == 1 & hist$LC == 1,]$XR))/(length(hist$XR[hist$LC == 1 & hist$TB == 1 & hist$Pn == 1]) + 2))
-
-  #P(Dyspnea | Bronchitis, Lung Cancer)
-  network$Dy = c((1 + sum(hist$Dy[(hist$Br == 0)&(hist$LC == 0)]))/(length(hist$Dy[(hist$Br == 0)&(hist$LC == 0)])),
-                 (1 + sum(hist$Dy[(hist$Br == 1)&(hist$LC == 0)]))/(length(hist$Dy[(hist$Br == 1)&(hist$LC == 0)])),
-                 (1 + sum(hist$Dy[(hist$Br == 0)&(hist$LC == 1)]))/(length(hist$Dy[(hist$Br == 0)&(hist$LC == 1)])),
-                 (1 + sum(hist$Dy[(hist$Br == 1)&(hist$LC == 1)]))/(length(hist$Dy[(hist$Br == 1)&(hist$LC == 1)])))
-
-  # P(Pneumonia)
-  network$Pn = (1 + sum(hist$Pn))/(length(hist$Pn))
-
-  network$TB = c((1 + sum(hist$TB[hist$VTB == 0]))/(2 + length(hist$TB[hist$VTB == 0])),
-                 (1 + sum(hist$TB[hist$VTB == 1]))/(2 + length(hist$TB[hist$VTB == 1])))
-
-  #P(Lung Cancer | Smokes)
-  network$LC = c((1 + sum(hist$LC[hist$Sm == 0]))/(2 + length(hist$LC[hist$Sm == 0])),
-                 (1 + sum(hist$LC[hist$Sm == 1]))/(2 + length(hist$LC[hist$Sm == 1])))
-
-  #P(Bronchitis | Smokes)
-  network$Br = c((1 + sum(hist$Br[hist$Sm == 0]))/(2 + length(hist$Br[hist$Sm == 0])),
-                 (1 + sum(hist$Br[hist$Sm == 1]))/(2 + length(hist$Br[hist$Sm == 1])))
-
-  return(network)
-}
-
-#diagnose function to be used
-diagnose = function(network, cases)
-{
-  #Initialize the MCMC Metropolis within Gibbs Sampling
-  estimates = matrix(NA, 10, 4)
-
-  #Keep track of the cases {Pn, TB, LC, Br}
-  diagnoses = c(1,4,6,7)
-
-  #We up the sample size to gain better performance
-  nSamples = 50000
-
-  #Designate a burn-in period
-  burnIn = nSamples/10
-  for(i in 1:10)
-  {
-    #Generate a random point number inside the loop
-    randomPt = cases[i,]
-    randomPt[diagnoses] = runif(4, min = 0, max = 1)>0.5
-    randomPt = as.numeric(randomPt)
-
-    samples = matrix(NA, nSamples-burnIn, 9)
-
-    #Calculate probability for the random point
-    probNew = calcProb(randomPt, network)
-
-    for(s in 1:nSamples)
-    {
-      for(each in diagnoses)
-      {
-        randomPt[each] = candidatefcn(randomPt[each])
-        probOld = calcProb(randomPt, network)
-
-        #Decide whether to keep or to discard with probability (1-probOld/probNew)
-        if((probOld < probNew) & (runif(1)- (probOld/probNew)> 0) )
-        {
-            randomPt[each] = candidatefcn(randomPt[each])
-            probOld = probNew
-        }
-        probNew = probOld
-      }
-      #Use the burn-in period to discard samples
-      if(s > burnIn)
-      {
-       samples[s - burnIn,] = as.numeric(randomPt)
-      }
-    }
-    #After the sampling, estimate the probabilities for the unknown variables
-    estimates[i,] = colMeans(samples[,diagnoses])
-  }
-  return(estimates)
-}
-#runDiagnostics(learn, diagnose)
-runDiagnostics(learn, diagnose, verbose = 2)
+df = pd.DataFrame({"ImageID": np.arange(1, 14001), "Label": np.argmax(pred, axis=1)})
+df.to_csv("Submission.csv", index=False)
