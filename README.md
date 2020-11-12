@@ -1,0 +1,2 @@
+# Artificiell-intelligens
+AI course
